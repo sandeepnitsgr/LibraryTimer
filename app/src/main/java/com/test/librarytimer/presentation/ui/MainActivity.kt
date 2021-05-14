@@ -198,6 +198,11 @@ class MainActivity : AppCompatActivity() {
 
         if (startTime.compareTo(0) == 0)
             flipScreenViewTo(WELCOME_VIEW)
+        val response = getSavedData()
+        response?.let {
+            val single = getScannedResultObservable(it)
+            compositeDisposable.add(single)
+        }
     }
 
     private fun startTimer() {
