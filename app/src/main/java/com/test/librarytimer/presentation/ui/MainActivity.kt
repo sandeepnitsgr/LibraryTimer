@@ -2,18 +2,25 @@ package com.test.librarytimer.presentation.ui
 
 import android.content.Intent
 import android.content.SharedPreferences
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.ViewFlipper
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import com.google.gson.Gson
 import com.google.zxing.integration.android.IntentIntegrator
-import com.test.librarytimer.R
+import com.test.librarytimer.*
+import com.test.librarytimer.data.model.ScanResult
 import com.test.librarytimer.presentation.viewmodel.EntryExitViewModel
+import io.reactivex.Single
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.schedulers.Schedulers
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.properties.Delegates
 
 class MainActivity : AppCompatActivity() {
     private lateinit var viewFlipper: ViewFlipper
@@ -26,13 +33,20 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var viewModel: EntryExitViewModel
 
-    private lateinit var prefs : SharedPreferences
+    private lateinit var prefs: SharedPreferences
 
-    private val timerFormatter = SimpleDateFormat("HH:mm:ss", Locale.ENGLISH)
+    private val df = SimpleDateFormat(TIME_FORMAT, Locale.ENGLISH)
+    private val timerFormatter = SimpleDateFormat(TIME_FORMAT, Locale.ENGLISH)
+
+    private val compositeDisposable = CompositeDisposable()
+
+    private val gson = Gson()
 
     // zxing
     private lateinit var qrScan: IntentIntegrator
 
+    private var isTimerRunning = false
+    private var startTime by Delegates.notNull<Long>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,35 +58,6 @@ class MainActivity : AppCompatActivity() {
         if (!::viewModel.isInitialized)
             initViewModel()
         observeLiveDataForTimerUpdate()
-        viewModel.startTimer(System.currentTimeMillis())
-    }
-
-    private fun initScanner() {
-        qrScan = IntentIntegrator(this)
-    }
-
-    private fun observeLiveDataForTimerUpdate() {
-        viewModel.timerLiveData.observe(this) { timerValue ->
-            updateTimerValue(timerFormatter.format(timerValue))
-        }
-
-    }
-    private fun updateTimerValue(timerValue: String?) {
-        timerTv.text = timerValue
-    }
-    private fun initViewModel() {
-        viewModel = ViewModelProvider(this).get(EntryExitViewModel::class.java)
-    }
-
-    private fun setClickListener() {
-        btn.setOnClickListener {
-            // start scanning
-            qrScan.initiateScan()
-        }
-    }
-
-    private fun initTimeZone() {
-        timerFormatter.timeZone = TimeZone.getTimeZone("GMT")
     }
 
     private fun initViewsAndPreference() {
@@ -84,25 +69,174 @@ class MainActivity : AppCompatActivity() {
         timerTv = findViewById(R.id.timerTv)
         btn = findViewById(R.id.btn)
 
-        prefs = getSharedPreferences("prefs", MODE_PRIVATE)
+        prefs = getSharedPreferences(PREF_NAME, MODE_PRIVATE)
 
+    }
+
+    private fun initScanner() {
+        qrScan = IntentIntegrator(this)
+    }
+
+    private fun initTimeZone() {
+        timerFormatter.timeZone = TimeZone.getTimeZone(TIMEZONE_GMT)
+    }
+
+    private fun observeLiveDataForTimerUpdate() {
+        viewModel.timerLiveData.observe(this) { timerValue ->
+            updateTimerValue(timerFormatter.format(timerValue))
+        }
+    }
+
+    private fun initViewModel() {
+        viewModel = ViewModelProvider(this).get(EntryExitViewModel::class.java)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        fetchTimerStatusAndUpdateUI()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        saveTimerInfo(null)
+    }
+
+    private fun startTimerAndSaveScannedResult(output: String) {
+        startTime = System.currentTimeMillis()
+        startTimer()
+        flipScreenViewTo(ENTRY_DETAIL_VIEW)
+        saveTimerInfo(output)
+        val disposable = getScannedResultObservable(output)
+        compositeDisposable.add(disposable)
+    }
+
+    private fun getScannedResultObservable(output: String) = Single.just(output)
+        .subscribeOn(Schedulers.computation())
+        .map { scanResult ->
+            gson.fromJson(scanResult, ScanResult::class.java)
+        }
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribe({ item ->
+            updateViews(item)
+        }) { e ->
+            e.printStackTrace()
+            showToast(UNKNOWN_ERROR_OCCURRED)
+
+        }
+
+    // ************ UI Operations START ********************
+    private fun setClickListener() {
+        btn.setOnClickListener {
+            qrScan.initiateScan()
+        }
+    }
+
+    private fun updateTimerValue(timerValue: String?) {
+        timerTv.text = timerValue
+    }
+
+    private fun flipScreenViewTo(viewId: Int) {
+        viewFlipper.displayedChild = viewId
+    }
+
+    private fun updateViews(scanResult: ScanResult?) {
+        scanResult?.let {
+            locationIdTv.text = it.locationId
+            locationTv.text = it.locationDetails
+            pricePerMinuteTv.text = "${it.pricePerMinute}"
+            startTimeTv.text = df.format(Date(startTime).time)
+            changeButtonText(getString(R.string.endSession))
+        }
+    }
+
+    private fun showToast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun changeButtonText(buttonText: String) {
+        btn.text = buttonText
+    }
+    // ************ UI operations END ***************************
+
+
+    //********* SharedPreference operations START *********************
+    // *************** saving ***********************
+    private fun saveTimerInfo(jsonString: String?) {
+        val editor = prefs.edit()
+        editor.putLong(START_TIME, startTime)
+        editor.putBoolean(IS_TIMER_RUNNING, isTimerRunning)
+        jsonString?.let { editor.putString(SCAN_DETAIL, jsonString) }
+        editor.apply()
+    }
+
+    // *********** fetching **************************
+    private fun getSavedData(): String? {
+        return prefs.getString(SCAN_DETAIL, null)
+    }
+
+    private fun getTimerData() {
+        startTime = prefs.getLong(START_TIME, System.currentTimeMillis())
+        isTimerRunning = prefs.getBoolean(IS_TIMER_RUNNING, false)
+    }
+
+    // ********** removing ****************************
+    private fun removeData() {
+        prefs.edit()
+            .remove(SCAN_DETAIL)
+            .remove(START_TIME)
+            .remove(IS_TIMER_RUNNING)
+            .apply()
+    }
+    //***** saving into SharedPreference operations END ************
+
+    private fun fetchTimerStatusAndUpdateUI() {
+        getTimerData()
+        if (isTimerRunning) {
+            startTimer()
+            flipScreenViewTo(ENTRY_DETAIL_VIEW)
+        }
+
+        if (startTime.compareTo(0) == 0)
+            flipScreenViewTo(WELCOME_VIEW)
+    }
+
+    private fun startTimer() {
+        viewModel.startTimer(startTime)
+        isTimerRunning = true
+    }
+
+    private fun stopTimer() {
+        viewModel.stopTimer()
+        changeButtonText(getString(R.string.scanNow))
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
         if (result != null) {
             if (result.contents == null) {
-                Toast.makeText(this, "Result Not Found", Toast.LENGTH_LONG).show()
+                showToast(RESULT_NOT_FOUND)
             } else {
-                Toast.makeText(this,"scanned result : " + result.contents, Toast.LENGTH_LONG).show()
+                var output = result.contents.replace("\\", "")
+                output = output.substring(1, output.length - 1)
+                val savedData = getSavedData()
+                if (savedData == null) {
+                    startTimerAndSaveScannedResult(output)
+                } else {
+                    if (output == savedData) {
+                        stopTimer()
+                        removeData()
+                    } else {
+                        showToast(SCAN_CORRECT_BARCODE)
+                    }
+                }
             }
         } else {
             super.onActivityResult(requestCode, resultCode, data)
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        viewModel.stopTimer()
+    override fun onDestroy() {
+        super.onDestroy()
+        compositeDisposable.dispose()
     }
 }

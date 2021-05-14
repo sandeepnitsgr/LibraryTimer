@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">LibraryTimer</string>
+    <string name="endSession">End Session</string>
+    <string name="scanNow">Scan Now</string>
 </resources>
