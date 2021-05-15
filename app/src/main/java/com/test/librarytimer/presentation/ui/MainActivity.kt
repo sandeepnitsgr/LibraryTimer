@@ -3,10 +3,7 @@ package com.test.librarytimer.presentation.ui
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
-import android.widget.ViewFlipper
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.google.gson.Gson
@@ -29,6 +26,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var startTimeTv: TextView
     private lateinit var locationTv: TextView
     private lateinit var timerTv: TextView
+
+    private lateinit var entryFlipper: ViewFlipper
+    private lateinit var endTimeTv: TextView
+    private lateinit var totalTimeInMinutesTv: TextView
+    private lateinit var amountToBePaidTv: TextView
+
+    private lateinit var detailsLayout: ScrollView
     private lateinit var btn: Button
 
     private lateinit var viewModel: EntryExitViewModel
@@ -67,6 +71,12 @@ class MainActivity : AppCompatActivity() {
         startTimeTv = findViewById(R.id.startTimeValue)
         locationTv = findViewById(R.id.locationDetailValue)
         timerTv = findViewById(R.id.timerTv)
+
+        entryFlipper = findViewById(R.id.entryFlipper)
+        endTimeTv = findViewById(R.id.endTimeValue)
+        totalTimeInMinutesTv = findViewById(R.id.totalTimeValue)
+        amountToBePaidTv = findViewById(R.id.amountValue)
+        detailsLayout = findViewById(R.id.detailsLayout)
         btn = findViewById(R.id.btn)
 
         prefs = getSharedPreferences(PREF_NAME, MODE_PRIVATE)
@@ -156,8 +166,18 @@ class MainActivity : AppCompatActivity() {
     private fun changeButtonText(buttonText: String) {
         btn.text = buttonText
     }
-    // ************ UI operations END ***************************
 
+    private fun updateTotalTimeAndCost(endTimeValue: Long) {
+        entryFlipper.displayedChild = EXIT_DETAIL_VIEW
+        endTimeTv.text = df.format(Date(endTimeValue))
+        val totalMinutes = getTotalMinutesSpent()
+        totalTimeInMinutesTv.text = "$totalMinutes"
+        val totalAmount = totalMinutes * pricePerMinuteTv.text.toString().toFloat()
+        amountToBePaidTv.text = "$totalAmount"
+        viewModel.submitSessionData(locationIdTv.text.toString(), totalMinutes, endTimeValue)
+    }
+
+    // ************ UI operations END ***************************
 
     //********* SharedPreference operations START *********************
     // *************** saving ***********************
@@ -189,6 +209,14 @@ class MainActivity : AppCompatActivity() {
     }
     //***** saving into SharedPreference operations END ************
 
+    private fun getTotalMinutesSpent(): Int {
+        val completeTimeSplits = timerTv.text.toString().split(":")
+        val hour = Integer.parseInt(completeTimeSplits[0])
+        val minutes = Integer.parseInt(completeTimeSplits[1])
+        val seconds = Integer.parseInt(completeTimeSplits[2])
+        return (hour * 60) + minutes + if (seconds > 0) 1 else 0
+    }
+
     private fun fetchTimerStatusAndUpdateUI() {
         getTimerData()
         if (isTimerRunning) {
@@ -212,6 +240,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopTimer() {
         viewModel.stopTimer()
+        isTimerRunning = false
+        updateTotalTimeAndCost(System.currentTimeMillis())
         changeButtonText(getString(R.string.scanNow))
     }
 

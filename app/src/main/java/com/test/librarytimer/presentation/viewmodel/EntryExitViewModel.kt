@@ -1,4 +1,5 @@
 package com.test.librarytimer.presentation.viewmodel
+
 import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.LiveData
@@ -38,5 +39,9 @@ class EntryExitViewModel : ViewModel() {
     fun stopTimer() {
         shouldStop = true
         handler.removeCallbacks(runnable)
+    }
+
+    fun submitSessionData(id: String, totalMinutes: Int, endTime: Long) {
+        // post data to server
     }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="font_mid">14sp</dimen>
+    <dimen name="top_margin">10dp</dimen>
+    <dimen name="layout_padding_common">24dp</dimen>
+    <dimen name="font_large">20sp</dimen>
+    <dimen name="margin_bottom">50dp</dimen>
+    <dimen name="font_huge">24sp</dimen>
+    <dimen name="btn_margin_bottom_small">4dp</dimen>
+</resources>
