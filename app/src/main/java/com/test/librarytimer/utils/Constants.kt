@@ -19,6 +19,7 @@ const val RESULT_NOT_FOUND = "Result Not Found"
 //ViewFlippers State
 const val WELCOME_VIEW = 0
 const val ENTRY_DETAIL_VIEW = 1
+const val ENTRY_DETAIL_MAIN_VIEW = 0
 const val EXIT_DETAIL_VIEW = 1
 
 //Service Actions

@@ -133,6 +133,7 @@ class MainActivity : AppCompatActivity() {
         startTime = System.currentTimeMillis()
         startTimer()
         flipScreenViewTo(ENTRY_DETAIL_VIEW)
+        entryFlipper.displayedChild = ENTRY_DETAIL_MAIN_VIEW
         saveTimerInfo(output)
         val disposable = getScannedResultObservable(output)
         compositeDisposable.add(disposable)
