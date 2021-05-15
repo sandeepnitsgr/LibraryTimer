@@ -29,3 +29,7 @@ const val STOP_FOREGROUND_ACTION = "STOP_FOREGROUND_ACTION"
 const val NOTIFICATION_ID = 22
 const val NOTIFICATION_CHANNEL_NAME = "Timer Channel"
 const val NOTIFICATION_CHANNEL_ID: String = "NOTIF_ID"
+
+
+//retrofit
+const val BASE_URL = "https://en478jh796m7w.x.pipedream.net"

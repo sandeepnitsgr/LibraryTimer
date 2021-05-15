@@ -5,14 +5,27 @@ import android.os.Looper
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import com.test.librarytimer.data.model.RequestParam
+import com.test.librarytimer.data.model.Response
+import com.test.librarytimer.data.remote.Repository
+import com.test.librarytimer.utils.BaseSchedulerProvider
+import io.reactivex.disposables.CompositeDisposable
+import javax.inject.Inject
 import kotlin.properties.Delegates
 
-class EntryExitViewModel : ViewModel() {
+class EntryExitViewModel @Inject constructor(
+    private val repository: Repository,
+    private val schedulerProvider: BaseSchedulerProvider
+) : ViewModel() {
 
+    private val disposable = CompositeDisposable()
     val timerLiveData: LiveData<Long>
         get() = _timerLiveData
-
     private val _timerLiveData = MutableLiveData<Long>()
+
+    val submitDetailLiveData: LiveData<Response>
+        get() = _submitDetailLiveData
+    private val _submitDetailLiveData = MutableLiveData<Response>()
 
     private val handler = Handler(Looper.getMainLooper())
     private var runnable = object : Runnable {
@@ -41,7 +54,24 @@ class EntryExitViewModel : ViewModel() {
         handler.removeCallbacks(runnable)
     }
 
-    fun submitSessionData(id: String, totalMinutes: Int, endTime: Long) {
-        // post data to server
+    fun submitSessionData(requestParam: RequestParam) {
+        disposable.add(
+            repository.submitData(requestParam).subscribeOn(schedulerProvider.io())
+                .observeOn(schedulerProvider.ui())
+                .doOnSubscribe { _submitDetailLiveData.value = Response.loading() }
+                .subscribe(
+                    { response ->
+                        _submitDetailLiveData.value = Response.success(response)
+                    }
+                ) { throwable ->
+                    _submitDetailLiveData.value = Response.error(throwable)
+                }
+        )
+
+    }
+
+    override fun onCleared() {
+        disposable.clear()
+        super.onCleared()
     }
 }

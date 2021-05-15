@@ -5,6 +5,8 @@
 
     <uses-sdk tools:overrideLibrary="com.google.zxing.client.android" />
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
@@ -20,8 +22,10 @@
         <service android:name=".presentation.service.TimerService" />
 
 
-        <activity android:name=".presentation.ui.MainActivity"
-            android:launchMode="singleTask">
+        <activity
+            android:name=".presentation.ui.MainActivity"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

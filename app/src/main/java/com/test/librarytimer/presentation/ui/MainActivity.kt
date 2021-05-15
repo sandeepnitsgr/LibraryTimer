@@ -5,18 +5,26 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.google.gson.Gson
 import com.google.zxing.integration.android.IntentIntegrator
 import com.test.librarytimer.*
+import com.test.librarytimer.data.model.RequestParam
+import com.test.librarytimer.data.model.Response
 import com.test.librarytimer.data.model.ScanResult
+import com.test.librarytimer.data.model.Status
+import com.test.librarytimer.di.Component
+import com.test.librarytimer.di.DaggerComponent
 import com.test.librarytimer.presentation.viewmodel.EntryExitViewModel
+import com.test.librarytimer.presentation.viewmodel.EntryExitViewModelFactory
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
 import java.text.SimpleDateFormat
 import java.util.*
+import javax.inject.Inject
 import kotlin.properties.Delegates
 
 class MainActivity : AppCompatActivity() {
@@ -45,16 +53,21 @@ class MainActivity : AppCompatActivity() {
     private val compositeDisposable = CompositeDisposable()
 
     private val gson = Gson()
-
+    @Inject
+    lateinit var factory : EntryExitViewModelFactory
     // zxing
     private lateinit var qrScan: IntentIntegrator
 
     private var isTimerRunning = false
     private var startTime by Delegates.notNull<Long>()
 
+    lateinit var component:Component
+    var shouldDataBePosted = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        initInjector()
         initViewsAndPreference()
         initScanner()
         initTimeZone()
@@ -62,6 +75,11 @@ class MainActivity : AppCompatActivity() {
         if (!::viewModel.isInitialized)
             initViewModel()
         observeLiveDataForTimerUpdate()
+    }
+
+    private fun initInjector() {
+        component = DaggerComponent.builder().build()
+        component.addInjection(this)
     }
 
     private fun initViewsAndPreference() {
@@ -95,10 +113,18 @@ class MainActivity : AppCompatActivity() {
         viewModel.timerLiveData.observe(this) { timerValue ->
             updateTimerValue(timerFormatter.format(timerValue))
         }
+        val submitDataObserver : Observer<Response> = Observer { response ->
+            when(response.status) {
+                Status.LOADING -> showToast("Sending data to Server..")
+                Status.ERROR -> showToast("Sending data to server failed!")
+                else -> showToast("Data successfully posted!")
+            }
+        }
+        viewModel.submitDetailLiveData.observe(this, submitDataObserver)
     }
 
     private fun initViewModel() {
-        viewModel = ViewModelProvider(this).get(EntryExitViewModel::class.java)
+        viewModel = ViewModelProvider(this, factory).get(EntryExitViewModel::class.java)
     }
 
     override fun onStart() {
@@ -174,7 +200,7 @@ class MainActivity : AppCompatActivity() {
         totalTimeInMinutesTv.text = "$totalMinutes"
         val totalAmount = totalMinutes * pricePerMinuteTv.text.toString().toFloat()
         amountToBePaidTv.text = "$totalAmount"
-        viewModel.submitSessionData(locationIdTv.text.toString(), totalMinutes, endTimeValue)
+        viewModel.submitSessionData(RequestParam(locationIdTv.text.toString(), totalMinutes, endTimeValue))
     }
 
     // ************ UI operations END ***************************
