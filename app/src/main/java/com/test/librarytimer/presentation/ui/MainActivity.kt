@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
     private var startTime by Delegates.notNull<Long>()
 
     lateinit var component:Component
-    var shouldDataBePosted = false
+    private lateinit var submitDataObserver : Observer<Response>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -113,14 +113,6 @@ class MainActivity : AppCompatActivity() {
         viewModel.timerLiveData.observe(this) { timerValue ->
             updateTimerValue(timerFormatter.format(timerValue))
         }
-        val submitDataObserver : Observer<Response> = Observer { response ->
-            when(response.status) {
-                Status.LOADING -> showToast("Sending data to Server..")
-                Status.ERROR -> showToast("Sending data to server failed!")
-                else -> showToast("Data successfully posted!")
-            }
-        }
-        viewModel.submitDetailLiveData.observe(this, submitDataObserver)
     }
 
     private fun initViewModel() {
@@ -200,7 +192,25 @@ class MainActivity : AppCompatActivity() {
         totalTimeInMinutesTv.text = "$totalMinutes"
         val totalAmount = totalMinutes * pricePerMinuteTv.text.toString().toFloat()
         amountToBePaidTv.text = "$totalAmount"
+        addSubmitDataObserver()
         viewModel.submitSessionData(RequestParam(locationIdTv.text.toString(), totalMinutes, endTimeValue))
+    }
+
+    private fun addSubmitDataObserver() {
+        submitDataObserver = Observer { response ->
+            when(response.status) {
+                Status.LOADING -> showToast("Sending data to Server..")
+                Status.ERROR -> {
+                    showToast("Sending data to server failed!")
+                    viewModel.submitDetailLiveData.removeObserver(submitDataObserver)
+                }
+                else -> {
+                    showToast("Data successfully posted!")
+                    viewModel.submitDetailLiveData.removeObserver(submitDataObserver)
+                }
+            }
+        }
+        viewModel.submitDetailLiveData.observe(this, submitDataObserver)
     }
 
     // ************ UI operations END ***************************
